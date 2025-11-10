@@ -3,7 +3,7 @@ import session from "express-session";
 import dotenv from "dotenv";
 import cors from "cors";
 import transporter from "./src/config/nodemailer.js";
-import supabase from "./config/supabaseclient.js";
+import supabase from "./src/config/supabaseclient.js";
 
 
 import authRoutes from "./src/routes/authroutes.js";
