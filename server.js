@@ -80,6 +80,11 @@ app.get("/", (req, res) => {
   res.send(" Ibravia backend is running!");
 });
 
+app.get("/test-supabase", async (req, res) => {
+  const { data, error } = await supabase.from("user").select("*").limit(1);
+  if (error) return res.status(500).json({ error });
+  res.json(data);
+});
 // ===============================
 // 🚀 Routes Utama
 // ===============================
@@ -134,3 +139,4 @@ app.listen(PORT, () => {
     })`
   );
 });
+
