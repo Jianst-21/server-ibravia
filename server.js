@@ -33,16 +33,19 @@ const PORT = process.env.PORT || 5000;
 // ===============================
 
 // CORS → izinkan frontend di localhost:5173
-// CORS → izinkan frontend di localhost:5173
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://tubes-ibravia.vercel.app", // ganti dengan domain Vercel kamu
+  "https://tubes-ibravia.vercel.app", // domain vercel kamu
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".up.railway.app")
+      ) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -52,8 +55,8 @@ app.use(
   })
 );
 
-
 // Body parser
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -64,9 +67,10 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // false kalau masih pakai http
+      secure: process.env.NODE_ENV === "production", // true kalau sudah online
       httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 2, // 2 jam
+      sameSite: "none", // penting kalau frontend beda domain
+      maxAge: 1000 * 60 * 60 * 2,
     },
   })
 );
@@ -118,7 +122,7 @@ cron.schedule("0 0 * * *", () => {
 // 🟢 Jalankan Server
 // ===============================
 app.listen(PORT, () => {
-  console.log(` Server berjalan di port ${PORT}`);
+  console.log(` Server berjalan di port ${PORT} (${process.env.NODE_ENV || "development"})`);
 });
 
-export default app;
+
