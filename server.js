@@ -111,6 +111,9 @@ app.get("/test-email", async (req, res) => {
     res.status(500).send(" Gagal mengirim email, cek console.");
   }
 });
+app.get("/", (req, res) => {
+  res.send(" Ibravia backend is running!");
+});
 
 // Jalankan setiap jam 00:00
 cron.schedule("0 0 * * *", () => {
