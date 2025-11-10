@@ -51,6 +51,7 @@ app.use(
         callback(new Error("Not allowed by CORS"));
       }
     },
+
     credentials: true,
   })
 );
@@ -117,7 +118,6 @@ app.get("/test-email", async (req, res) => {
   }
 });
 
-
 // Jalankan setiap jam 00:00
 cron.schedule("0 0 * * *", () => {
   console.log(" Menjalankan cron job setiap tengah malam");
@@ -128,7 +128,9 @@ cron.schedule("0 0 * * *", () => {
 // 🟢 Jalankan Server
 // ===============================
 app.listen(PORT, () => {
-  console.log(` Server berjalan di port ${PORT} (${process.env.NODE_ENV || "development"})`);
+  console.log(
+    ` Server berjalan di port ${PORT} (${
+      process.env.NODE_ENV || "development"
+    })`
+  );
 });
-
-
