@@ -104,22 +104,18 @@ export const login = async (req, res) => {
   const { identifier, password } = req.body;
 
   try {
+    const isEmail = identifier.includes("@");
+
     const { data: user, error } = await supabase
-      .from("user") // ubah ke nama tabel kamu
+      .from("user")
       .select("*")
-      .eq("email", identifier)
+      .eq(isEmail ? "email" : "username", identifier)
       .maybeSingle();
 
-    if (error || !user) {
-      console.error("❌ User not found in database:", error);
-      return res.status(400).json({ error: "User not found." });
-    }
+    if (error || !user) return res.status(400).json({ error: "User not found." });
 
-    if (!user.account_status) {
-      return res.status(403).json({
-        error: "Account not verified. Please verify your email via OTP.",
-      });
-    }
+    if (!user.account_status)
+      return res.status(403).json({ error: "Account not verified. Please verify your email via OTP." });
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: "Incorrect password." });
@@ -127,7 +123,7 @@ export const login = async (req, res) => {
     req.session.user = {
       id: user.id_user,
       email: user.email,
-      name: user.name || null,
+      username: user.username,
     };
 
     res.json({
@@ -136,10 +132,9 @@ export const login = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error during login:", err);
-    res.status(500).json({ error: "Internal server error." });
+    res.status(500).json({ error: err.message });
   }
 };
-
 
 /* =============================
    LOGOUT
