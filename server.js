@@ -34,12 +34,24 @@ const PORT = process.env.PORT || 5000;
 
 // CORS → izinkan frontend di localhost:5173
 // CORS → izinkan frontend di localhost:5173
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://tubes-ibravia.vercel.app", // ganti dengan domain Vercel kamu
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    credentials: true, // penting kalau pakai session/cookie
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
   })
 );
+
 
 // Body parser
 app.use(express.json());
@@ -106,7 +118,7 @@ cron.schedule("0 0 * * *", () => {
 // 🟢 Jalankan Server
 // ===============================
 app.listen(PORT, () => {
-  console.log(` Server berjalan di http://localhost:${PORT}`);
+  console.log(` Server berjalan di port ${PORT}`);
 });
 
 export default app;
