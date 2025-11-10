@@ -74,6 +74,18 @@ app.get("/test-supabase", async (req, res) => {
   if (error) return res.status(500).json({ error });
   res.json(data);
 });
+
+app.get("/test-supabase", async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("user").select("*").limit(1);
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("❌ Supabase error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ===============================
 // 🚀 Routes Utama
 // ===============================
