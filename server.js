@@ -2,9 +2,10 @@ import express from "express";
 import session from "express-session";
 import dotenv from "dotenv";
 import cors from "cors";
-import transporter from "./src/config/nodemailer.js";
 import passport from "passport";
-import "./src/config/passport.js";
+import "./src/config/passport.js"; // PENTING → load passport config dulu
+
+// Routes
 import googleAuthRoutes from "./src/routes/googleAuth.js";
 import authRoutes from "./src/routes/authroutes.js";
 import houseRoutes from "./src/routes/houseroutes.js";
@@ -12,8 +13,6 @@ import reservationRoutes from "./src/routes/reservationroutes.js";
 import propertyRoutes from "./src/routes/propertyroutes.js";
 import blockRoutes from "./src/routes/block.js";
 import houseSelector from "./src/routes/houseselector.js";
-import cron from "node-cron";
-import { updateReservationStatus } from "./src/cron/updateReservationStatus.js";
 import editProfileRoutes from "./src/routes/editprofile.js";
 
 import adminAuthRoutes from "./src/routes/adminauthroutes.js";
@@ -23,24 +22,29 @@ import adminNotificationRoutes from "./src/routes/adminnotificationroutes.js";
 import adminReportRoutes from "./src/routes/adminreportroutes.js";
 import adminManageReservationRoutes from "./src/routes/adminmanagereservationroute.js";
 
+import cron from "node-cron";
+import { updateReservationStatus } from "./src/cron/updateReservationStatus.js";
 
-// ===============================
-// 🔧 Inisialisasi
-// ===============================
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ===============================
-// 🧩 Middleware Global
-// ===============================
+// =====================================================
+// 🔧 Logging Environment
+// =====================================================
+console.log("============ ENV CHECK ============");
+console.log("SERVER_URL:", process.env.SERVER_URL);
+console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "OK" : "MISSING");
+console.log("GOOGLE_CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET ? "OK" : "MISSING");
+console.log("====================================");
 
-// CORS → izinkan frontend di localhost:5173
+// =====================================================
+// 🌐 CORS CONFIG
+// =====================================================
 const allowedOrigins = [
   "http://localhost:5173",
   "https://tubes-ibravia.vercel.app"
 ];
-
 
 app.use(
   cors({
@@ -49,49 +53,64 @@ app.use(
   })
 );
 
-// Body parser
-app.set("trust proxy", 1);
+// =====================================================
+// 🔧 Express + Session
+// =====================================================
+app.set("trust proxy", 1); // WAJIB untuk Zeabur
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session → untuk login
+// Session Google login (agar tidak 502)
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "default-secret",
     resave: false,
     saveUninitialized: false,
-    proxy: true, // tambah ini untuk Zeabur
+    proxy: true,
     cookie: {
-      secure: true,          // wajib true di Zeabur (HTTPS)
+      secure: true,      // Zeabur pakai HTTPS
       httpOnly: true,
-      sameSite: "none",      // wajib none kalau beda domain
+      sameSite: "none",  // harus none supaya bisa cross-domain
       maxAge: 1000 * 60 * 60 * 2,
     },
   })
 );
 
-
-app.get("/", (req, res) => {
-  res.send(" Ibravia backend is running!");
-});
-
-
-
-
+// =====================================================
+// 🔑 Passport Init
+// =====================================================
 app.use(passport.initialize());
 app.use(passport.session());
-// ===============================
-// 🚀 Routes Utama
-// ===============================
+
+// =====================================================
+// 🌍 Test Route
+// =====================================================
+app.get("/", (req, res) => {
+  res.send("Ibravia backend is running!");
+});
+
+// =====================================================
+// 🚀 Routes
+// =====================================================
+
+// 🔥 Google Auth harus di paling atas sebelum /api/auth
+app.use("/api/auth", googleAuthRoutes);
+
+// Login biasa
 app.use("/api/auth", authRoutes);
+
+// User
+app.use("/api/user", editProfileRoutes);
+
+// Houses
 app.use("/api/houses", houseRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/property", propertyRoutes);
 app.use("/api/block", blockRoutes);
 app.use("/api/houseselector", houseSelector);
-app.use("/api/user", editProfileRoutes);
-app.use("/api/auth", googleAuthRoutes);
 
+// Admin
 app.use("/api/admin", adminAuthRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/admin", adminManageHouseRoutes);
@@ -99,42 +118,17 @@ app.use("/api/admin", adminNotificationRoutes);
 app.use("/api/admin/report", adminReportRoutes);
 app.use("/api/admin", adminManageReservationRoutes);
 
-
-// ===============================
-// 📧 Route Tes Email
-// ===============================
-app.get("/test-email", async (req, res) => {
-  try {
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER, // kirim ke email sendiri untuk test
-      subject: "Tes Email dari Ibravia",
-      text: "Halo! Ini email percobaan dari server Ibravia ",
-    });
-
-    console.log(" Email terkirim:", info.response);
-    res.send(" Email berhasil dikirim!");
-  } catch (err) {
-    console.error(" Gagal kirim email:", err);
-    res.status(500).send(" Gagal mengirim email, cek console.");
-  }
-});
-
-// Jalankan setiap jam 00:00
+// =====================================================
+// 🕒 Cron
+// =====================================================
 cron.schedule("0 0 * * *", () => {
-  console.log(" Menjalankan cron job setiap tengah malam");
+  console.log("Running midnight cron job...");
   updateReservationStatus();
 });
 
-// ===============================
-// 🟢 Jalankan Server
-// ===============================
+// =====================================================
+// 🟢 Start Server
+// =====================================================
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    ` Server berjalan di port ${PORT} (${
-      process.env.NODE_ENV || "development"
-    })`
-  );
+  console.log(`Server running on port ${PORT}`);
 });
-
-
