@@ -27,8 +27,8 @@ router.get(
     // Redirect ke frontend
     const redirectURL =
       `${process.env.FRONTEND_URL}/oauth-success` +
-      `?email=${encodeURIComponent(req.user.email)}` +
-      `&name=${encodeURIComponent(req.user.name)}` +
+      `?email=${req.user.email}` +
+      `&name=${req.user.name}` +
       `&id=${req.user.id_user}` +
       `&token=${token}`;
 
