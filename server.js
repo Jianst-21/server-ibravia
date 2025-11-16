@@ -75,22 +75,8 @@ app.get("/", (req, res) => {
   res.send(" Ibravia backend is running!");
 });
 
-app.get("/test-supabase", async (req, res) => {
-  const { data, error } = await supabase.from("user").select("*").limit(1);
-  if (error) return res.status(500).json({ error });
-  res.json(data);
-});
 
-app.get("/test-supabase", async (req, res) => {
-  try {
-    const { data, error } = await supabase.from("user").select("*").limit(1);
-    if (error) throw error;
-    res.json({ success: true, data });
-  } catch (err) {
-    console.error("❌ Supabase error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -143,11 +129,12 @@ cron.schedule("0 0 * * *", () => {
 // ===============================
 // 🟢 Jalankan Server
 // ===============================
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(
     ` Server berjalan di port ${PORT} (${
       process.env.NODE_ENV || "development"
     })`
   );
 });
+
 
