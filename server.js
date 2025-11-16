@@ -91,6 +91,8 @@ app.get("/test-supabase", async (req, res) => {
   }
 });
 
+app.use(passport.initialize());
+app.use(passport.session());
 // ===============================
 // 🚀 Routes Utama
 // ===============================
@@ -101,16 +103,15 @@ app.use("/api/property", propertyRoutes);
 app.use("/api/block", blockRoutes);
 app.use("/api/houseselector", houseSelector);
 app.use("/api/user", editProfileRoutes);
-app.use(passport.initialize());
-app.use(passport.session());
 app.use("/api/auth", googleAuthRoutes);
 
-app.use("/api/admin/auth", adminAuthRoutes);
+app.use("/api/admin", adminAuthRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/admin", adminManageHouseRoutes);
 app.use("/api/admin", adminNotificationRoutes);
 app.use("/api/admin/report", adminReportRoutes);
 app.use("/api/admin", adminManageReservationRoutes);
+
 
 // ===============================
 // 📧 Route Tes Email
