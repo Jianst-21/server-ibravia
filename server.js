@@ -61,21 +61,21 @@ app.set("trust proxy", 1); // WAJIB untuk Zeabur
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session Google login (agar tidak 502)
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "default-secret",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      secure: true,      // Zeabur pakai HTTPS
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      sameSite: "none",  // harus none supaya bisa cross-domain
+      sameSite: "none",
       maxAge: 1000 * 60 * 60 * 2,
     },
   })
 );
+
 
 // =====================================================
 // 🔑 Passport Init
