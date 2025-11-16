@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import transporter from "./src/config/nodemailer.js";
 import passport from "passport";
+import "./src/config/passport.js";
 import googleAuthRoutes from "./src/routes/googleAuth.js";
 import authRoutes from "./src/routes/authroutes.js";
 import houseRoutes from "./src/routes/houseroutes.js";
