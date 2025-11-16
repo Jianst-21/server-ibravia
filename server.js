@@ -37,8 +37,9 @@ const PORT = process.env.PORT || 5000;
 // CORS → izinkan frontend di localhost:5173
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://tubes-ibravia.vercel.app", // domain vercel kamu
+  "https://tubes-ibravia.vercel.app"
 ];
+
 
 app.use(
   cors({
@@ -58,14 +59,16 @@ app.use(
     secret: process.env.SESSION_SECRET || "default-secret",
     resave: false,
     saveUninitialized: false,
+    proxy: true, // tambah ini untuk Zeabur
     cookie: {
-      secure: process.env.NODE_ENV === "production", // true kalau sudah online
+      secure: true,          // wajib true di Zeabur (HTTPS)
       httpOnly: true,
-      sameSite: "none", // penting kalau frontend beda domain
+      sameSite: "none",      // wajib none kalau beda domain
       maxAge: 1000 * 60 * 60 * 2,
     },
   })
 );
+
 
 app.get("/", (req, res) => {
   res.send(" Ibravia backend is running!");
