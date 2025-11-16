@@ -13,25 +13,16 @@ const router = express.Router();
 =========================== */
 
 // Ambil semua data rumah milik PT admin
-router.get("/houses", verifyAdmin, async (req, res, next) => {
-  console.log(" [GET] Fetching admin houses...");
-  next();
-}, getAdminHouses);
+router.get("/houses", verifyAdmin, getAdminHouses);
 
 // Update status rumah (available / sold / reserved)
-router.patch("/houses/:id_house/status", verifyAdmin, async (req, res, next) => {
-  console.log(` [PATCH] Updating house status — ID: ${req.params.id_house}`);
-  next();
-}, updateHouseStatus);
+router.patch("/houses/:id_house/status", verifyAdmin, updateHouseStatus);
 
 /* ===========================
    📅 RESERVATIONS BY HOUSE
 =========================== */
 
 // Ambil data reservasi berdasarkan id_house (untuk hitung H-7)
-router.get("/reservations/:id_house", verifyAdmin, async (req, res, next) => {
-  console.log(` [GET] Fetching reservations for house ID: ${req.params.id_house}`);
-  next();
-}, getReservationByHouse);
+router.get("/reservations/:id_house", verifyAdmin, getReservationByHouse);
 
 export default router;

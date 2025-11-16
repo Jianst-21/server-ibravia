@@ -3,9 +3,8 @@ import session from "express-session";
 import dotenv from "dotenv";
 import cors from "cors";
 import transporter from "./src/config/nodemailer.js";
-import supabase from "./src/config/supabaseclient.js";
-
-
+import passport from "passport";
+import googleAuthRoutes from "./src/routes/googleAuth.js";
 import authRoutes from "./src/routes/authroutes.js";
 import houseRoutes from "./src/routes/houseroutes.js";
 import reservationRoutes from "./src/routes/reservationroutes.js";
@@ -22,6 +21,7 @@ import adminManageHouseRoutes from "./src/routes/adminmanagehouseroutes.js";
 import adminNotificationRoutes from "./src/routes/adminnotificationroutes.js";
 import adminReportRoutes from "./src/routes/adminreportroutes.js";
 import adminManageReservationRoutes from "./src/routes/adminmanagereservationroute.js";
+
 
 // ===============================
 // 🔧 Inisialisasi
@@ -101,6 +101,9 @@ app.use("/api/property", propertyRoutes);
 app.use("/api/block", blockRoutes);
 app.use("/api/houseselector", houseSelector);
 app.use("/api/user", editProfileRoutes);
+app.use(passport.initialize());
+app.use(passport.session());
+app.use("/api/auth", googleAuthRoutes);
 
 app.use("/api/admin/auth", adminAuthRoutes);
 app.use("/api/admin", adminDashboardRoutes);
