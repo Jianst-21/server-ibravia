@@ -127,7 +127,7 @@ export const createReservation = async (req, res) => {
       const houseFullName = `${residenceName} — Block ${houseData.block?.block_name} No. ${houseData.number_block}`;
 
       await transporter.sendMail({
-        from: `"IBRAVIA Residence" <${process.env.EMAIL_USER}>`,
+        from: `"ibraviaku@gmail.com" <${process.env.EMAIL_USER}>`,
         to: userEmail,
         subject: `${residenceName} — Reservation Created`,
         html: `
