@@ -6,7 +6,7 @@ export const createReservation = async (req, res) => {
   const { id_user, id_pt, id_house, reservation_status } = req.body;
 
   try {
-    // Fetch user data from DB
+    // ============= FETCH USER DATA =====================
     const { data: userData, error: userError } = await supabase
       .from("user")
       .select("name, email")
@@ -18,13 +18,14 @@ export const createReservation = async (req, res) => {
     const userName = userData.name;
     const userEmail = userData.email;
 
-    // Check if user already has a pending or accepted reservation
+    // ============= VALIDATE EXISTING RESERVATION =====================
     const { data: existingUserReservation, error: existingError } = await supabase
       .from("reservation")
       .select("*")
       .eq("id_user", id_user)
       .in("reservation_status", ["pending", "accepted"]);
     if (existingError) throw existingError;
+
     if (existingUserReservation && existingUserReservation.length > 0) {
       return res.status(400).json({
         success: false,
@@ -32,7 +33,7 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // Fetch house data + block + residence + admin id
+    // ============= FETCH HOUSE DATA =====================
     const { data: houseData, error: houseError } = await supabase
       .from("houses")
       .select(`
@@ -40,42 +41,51 @@ export const createReservation = async (req, res) => {
         id_admin,
         status,
         number_block,
-        block:block(id_block, block_name, residence:residence(id_residence, residence_name))
+        block:block(
+          id_block,
+          block_name,
+          residence:residence(id_residence, residence_name)
+        )
       `)
       .eq("id_house", id_house)
       .single();
     if (houseError) throw houseError;
 
-    // Check if house is still available
+    // ============= CHECK HOUSE STATUS =====================
     if (!houseData || ["reserved", "sold"].includes(houseData.status)) {
-      return res.status(400).json({ success: false, error: "The house is no longer available." });
+      return res.status(400).json({
+        success: false,
+        error: "The house is no longer available.",
+      });
     }
 
-    // Determine start_date & end_date
+    // ============= SET START & END DATE =====================
     const start_date = new Date().toISOString();
-    const end_date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+    const end_date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Insert into reservation table
+    // ============= INSERT RESERVATION =====================
     const { data: reservation, error: insertError } = await supabase
       .from("reservation")
       .insert([{ id_user, id_pt, id_house, start_date, end_date, reservation_status }])
       .select();
     if (insertError) throw insertError;
-    if (!reservation || reservation.length === 0) throw new Error("Failed to create reservation.");
+
     const newReservation = reservation[0];
 
-    // Update house status to 'reserved'
-    const { error: updateHouseError } = await supabase
+    // ============= UPDATE HOUSE STATUS =====================
+    await supabase
       .from("houses")
       .update({ status: "reserved" })
       .eq("id_house", id_house);
-    if (updateHouseError) throw updateHouseError;
 
-    // House name for description / notification
-    const houseName = `Block ${houseData.number_block} - ${houseData.block?.block_name} (${houseData.block?.residence?.residence_name})`;
+    // ============= COMPOSE HOUSE NAME =====================
+    const residenceName = houseData.block?.residence?.residence_name;
+    const blockName = houseData.block?.block_name;
+    const houseName = `${residenceName}`;
+
     const sendTime = new Date().toISOString();
 
-    // Save email record for user
+    // ============= SAVE EMAIL RECORD =====================
     await supabase.from("email").insert({
       id_user,
       id_reservasi: newReservation.id_reservasi,
@@ -83,28 +93,46 @@ export const createReservation = async (req, res) => {
       deskripsi: `Reservation for house ${houseName} has been successfully created!`,
     });
 
-    // Send email to user
+    // ============= FETCH ADMIN FOR EMAIL =====================
+    const { data: adminData } = await supabase
+      .from("admin")
+      .select("username, phone")
+      .eq("id_admin", houseData.id_admin)
+      .single();
+
+    const adminName = adminData?.username || "Admin";
+    const adminPhone = adminData?.phone || "-";
+
+    // ============= SEND EMAIL TO USER =====================
     if (userEmail) {
       await transporter.sendMail({
-        from: `"ibravia@gmail.com" <${process.env.EMAIL_USER}>`,
+        from: `"IBRAVIA Residence" <${process.env.EMAIL_USER}>`,
         to: userEmail,
-        subject: "Reservation Successful",
+        subject: `${houseName} — Reservation Created`,
         html: `
-          <h2>Hello, ${userName}</h2>
-          <p>Your reservation for house <b>${houseName}</b> has been successfully created.</p>
-          <p><b>Start Date:</b> ${new Date(start_date).toLocaleString()}</p>
-          <p><b>End Date:</b> ${new Date(end_date).toLocaleString()}</p>
-          <p>Thank you for using our service.</p>
+          <h2>${houseName}</h2>
+
+          <p>Hello <b>${userName}</b>,</p>
+          <p>Your reservation for house <b>Block ${houseData.number_block} (${houseName})</b> has been successfully created.</p>
+
+          <p><b>Start Date:</b> ${new Date(start_date).toLocaleDateString()}</p>
+          <p><b>End Date:</b> ${new Date(end_date).toLocaleDateString()}</p>
+
+          <p>Please contact our admin: <b>${adminPhone}</b> (${adminName}) within 7 days.</p>
+          <p>If you do not confirm within this period, your reservation will be automatically cancelled.</p>
+
+          <br/>
+          <p>Thank you for choosing our service.</p>
         `,
       });
     }
 
-    // Save notification for the admin responsible for the house
+    // ============= ADMIN NOTIFICATION =====================
     await supabase.from("notification").insert({
       id_admin: houseData.id_admin,
       id_reservasi: newReservation.id_reservasi,
       id_pt,
-      content: `User ${userName} has made a reservation for house ${houseName}.`,
+      content: `User ${userName} reserved house in ${houseName}.`,
       send_time: sendTime,
       read_status: false,
     });
@@ -142,9 +170,7 @@ export const getReservationsByUser = async (req, res) => {
             living_room,
             family_room,
             kitchen,
-            residence:residence (
-              residence_name
-            )
+            residence:residence (residence_name)
           )
         )
       `)
