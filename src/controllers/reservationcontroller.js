@@ -19,24 +19,27 @@ export const createReservation = async (req, res) => {
     const userEmail = userData.email;
 
     // ============= VALIDATE EXISTING RESERVATION =====================
-    const { data: existingUserReservation, error: existingError } = await supabase
-      .from("reservation")
-      .select("*")
-      .eq("id_user", id_user)
-      .in("reservation_status", ["pending", "accepted"]);
+    const { data: existingUserReservation, error: existingError } =
+      await supabase
+        .from("reservation")
+        .select("*")
+        .eq("id_user", id_user)
+        .in("reservation_status", ["pending", "accepted"]);
     if (existingError) throw existingError;
 
     if (existingUserReservation && existingUserReservation.length > 0) {
       return res.status(400).json({
         success: false,
-        error: "You still have an unfinished reservation. Please complete it first.",
+        error:
+          "You still have an unfinished reservation. Please complete it first.",
       });
     }
 
     // ============= FETCH HOUSE DATA =====================
     const { data: houseData, error: houseError } = await supabase
       .from("houses")
-      .select(`
+      .select(
+        `
         id_house,
         id_admin,
         status,
@@ -46,7 +49,8 @@ export const createReservation = async (req, res) => {
           block_name,
           residence:residence(id_residence, residence_name)
         )
-      `)
+      `
+      )
       .eq("id_house", id_house)
       .single();
     if (houseError) throw houseError;
@@ -61,12 +65,16 @@ export const createReservation = async (req, res) => {
 
     // ============= SET START & END DATE =====================
     const start_date = new Date().toISOString();
-    const end_date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const end_date = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    ).toISOString();
 
     // ============= INSERT RESERVATION =====================
     const { data: reservation, error: insertError } = await supabase
       .from("reservation")
-      .insert([{ id_user, id_pt, id_house, start_date, end_date, reservation_status }])
+      .insert([
+        { id_user, id_pt, id_house, start_date, end_date, reservation_status },
+      ])
       .select();
     if (insertError) throw insertError;
 
@@ -104,21 +112,34 @@ export const createReservation = async (req, res) => {
     const adminPhone = adminData?.phone || "-";
 
     // ============= SEND EMAIL TO USER =====================
+    // ============= SEND EMAIL TO USER =====================
     if (userEmail) {
+      // Format username agar kapital di awal setiap kata
+      const formattedUserName = userName
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+
+      // Nama residence saja untuk subject
+      const residenceName = houseData.block?.residence?.residence_name;
+
+      // Nama lengkap untuk isi email
+      const houseFullName = `${residenceName} — Block ${houseData.block?.block_name} No. ${houseData.number_block}`;
+
       await transporter.sendMail({
         from: `"IBRAVIA Residence" <${process.env.EMAIL_USER}>`,
         to: userEmail,
-        subject: `${houseName} — Reservation Created`,
+        subject: `${residenceName} — Reservation Created`,
         html: `
-          <h2>${houseName}</h2>
+          <h2>${residenceName}</h2>
 
-          <p>Hello <b>${userName}</b>,</p>
-          <p>Your reservation for house <b>Block ${houseData.number_block} (${houseName})</b> has been successfully created.</p>
+          <p>Hello <b>${formattedUserName}</b>,</p>
+          <p>Your reservation for <b>${houseFullName}</b> has been successfully created.</p>
 
           <p><b>Start Date:</b> ${new Date(start_date).toLocaleDateString()}</p>
           <p><b>End Date:</b> ${new Date(end_date).toLocaleDateString()}</p>
 
-          <p>Please contact our admin: <b>${adminPhone}</b> (${adminName}) within 7 days.</p>
+          <p>Please contact our admin: +62 <b>${adminPhone}</b> (${adminName}) within 7 days.</p>
           <p>If you do not confirm within this period, your reservation will be automatically cancelled.</p>
 
           <br/>
@@ -154,7 +175,8 @@ export const getReservationsByUser = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("reservation")
-      .select(`
+      .select(
+        `
         id_reservasi,
         start_date,
         end_date,
@@ -173,12 +195,15 @@ export const getReservationsByUser = async (req, res) => {
             residence:residence (residence_name)
           )
         )
-      `)
+      `
+      )
       .eq("id_user", id_user);
 
     if (error) {
       console.error("❌ Supabase error:", error);
-      return res.status(500).json({ error: "Failed to fetch user reservations." });
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch user reservations." });
     }
 
     if (!data || data.length === 0) {
@@ -189,8 +214,12 @@ export const getReservationsByUser = async (req, res) => {
       const block = item.house?.block || {};
 
       const details = [
-        block.bedroom ? `${block.bedroom} Bedroom${block.bedroom > 1 ? "s" : ""}` : null,
-        block.bathroom ? `${block.bathroom} Bathroom${block.bathroom > 1 ? "s" : ""}` : null,
+        block.bedroom
+          ? `${block.bedroom} Bedroom${block.bedroom > 1 ? "s" : ""}`
+          : null,
+        block.bathroom
+          ? `${block.bathroom} Bathroom${block.bathroom > 1 ? "s" : ""}`
+          : null,
         block.living_room && block.family_room
           ? "Living & Family Room"
           : block.living_room
