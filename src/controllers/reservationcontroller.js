@@ -139,9 +139,8 @@ export const createReservation = async (req, res) => {
           <p><b>Start Date:</b> ${new Date(start_date).toLocaleDateString()}</p>
           <p><b>End Date:</b> ${new Date(end_date).toLocaleDateString()}</p>
 
-          <p>Please contact our admin: +62 <b>${adminPhone}</b> (${adminName}) within 7 days.</p>
-          <p>If you do not confirm within this period, your reservation will be automatically cancelled.</p>
-
+          <p>Please contact our admin: +62 <b>${adminPhone}</b> (${adminName}) within 7 days. 
+            If you do not confirm within this period, your reservation will be automatically cancelled.</</p>
           <br/>
           <p>Thank you for choosing our service.</p>
         `,
