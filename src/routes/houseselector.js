@@ -37,7 +37,7 @@ router.get("/:id_house", async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error("❌ Gagal ambil house:", err.message);
-    res.status(500).json({ message: "Gagal mengambil data rumah" });
+    res.status(500).json({ message: "Failed to retrieve house data" });
   }
 });
 export default router;

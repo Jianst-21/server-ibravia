@@ -9,7 +9,7 @@ router.post("/", createReservation);
 router.get("/user/:id_user", getReservationsByUser);
 router.get("/check-expired", async (req, res) => {
   await updateReservationStatus();
-  res.json({ message: "Pemeriksaan reservasi selesai." });
+  res.json({ message: "Reservation check completed." });
 });
 
 
