@@ -88,7 +88,6 @@ export const createReservation = async (req, res) => {
 
     // ============= COMPOSE HOUSE NAME =====================
     const residenceName = houseData.block?.residence?.residence_name;
-    const blockName = houseData.block?.block_name;
     const houseName = `${residenceName}`;
 
     const sendTime = new Date().toISOString();

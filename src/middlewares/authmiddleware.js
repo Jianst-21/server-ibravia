@@ -1,6 +1,5 @@
 import supabase from "../config/supabaseclient.js";
 
-
 export const checkAuth = (req, res, next) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Harus login terlebih dahulu" });
@@ -29,6 +28,7 @@ export const requireAuth = async (req, res, next) => {
     req.user = data.user;
     next(); // lanjut ke route berikutnya
   } catch (err) {
+    console.error("Auth Middleware Error:", err); // <-- pakai err, warning hilang
     res.status(500).json({ error: "Terjadi kesalahan autentikasi" });
   }
 };

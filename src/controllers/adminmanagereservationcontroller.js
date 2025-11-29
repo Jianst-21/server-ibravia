@@ -118,7 +118,7 @@ ibraviaku@gmail.com`;
     });
     console.log(`✅ Email (${type}) sent to ${toEmail}`);
   } catch (emailError) {
-    console.error(`⚠️ Failed to send email:`, emailError.message);
+    console.error("⚠️ Failed to send email:", emailError.message);
   }
 
   // --- Simpan Log ke Database ---

@@ -198,7 +198,7 @@ no-reply@ibravia.com
 `;
 
   await transporter.sendMail({
-    from: `"Ibravia Support" <no-reply@ibravia.com>`,
+    from: "\"Ibravia Support\" <no-reply@ibravia.com>",
     to: user.email,
     subject: emailSubject,
     text: emailText,
