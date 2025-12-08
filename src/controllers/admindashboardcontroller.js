@@ -41,40 +41,41 @@ export const getAdminDashboard = async (req, res) => {
       .eq("status", "reserved");
 
     // ===============================
-    // 4️⃣ Reservasi aktif (hanya dari rumah di residence ini)
+    // 4️⃣ Reservasi aktif
     // ===============================
     const { count: activeReservations } = await supabase
       .from("reservation")
       .select("id_reservasi", { count: "exact", head: true })
       .eq("reservation_status", "active")
-      .in("id_house", houseIds.length > 0 ? houseIds : [-1]); // antisipasi kalau kosong
+      .in("id_house", houseIds.length > 0 ? houseIds : [-1]);
 
     // ===============================
-    // 4.5️⃣ Reservasi Cancelled (BARU)
+    // 4.5️⃣ Reservasi cancel
     // ===============================
     const { count: cancelledReservations } = await supabase
       .from("reservation")
       .select("id_reservasi", { count: "exact", head: true })
-      .eq("reservation_status", "cancelled") // Filter status 'cancelled'
+      .eq("reservation_status", "cancelled")
       .in("id_house", houseIds.length > 0 ? houseIds : [-1]);
 
     // ===============================
-    // 5️⃣ 5 reservasi terbaru (hanya dari rumah di residence ini)
+    // 5️⃣ Ambil SEMUA reservasi untuk residence ini
     // ===============================
-    const { data: latestReservationsRaw } = await supabase
+    const { data: allReservationsRaw, error: allResErr } = await supabase
       .from("reservation")
       .select(
         "id_reservasi, id_user, id_house, reservation_status, start_date, end_date"
       )
       .in("id_house", houseIds.length > 0 ? houseIds : [-1])
-      .order("start_date", { ascending: false })
-      .limit(5);
+      .order("start_date", { ascending: false });
+
+    if (allResErr) throw allResErr;
 
     // ===============================
     // 6️⃣ Join user & house info
     // ===============================
-    const latestReservations = await Promise.all(
-      (latestReservationsRaw || []).map(async (r) => {
+    const allReservations = await Promise.all(
+      (allReservationsRaw || []).map(async (r) => {
         const { data: house } = await supabase
           .from("houses")
           .select("number_block, status")
@@ -92,7 +93,7 @@ export const getAdminDashboard = async (req, res) => {
     );
 
     // ===============================
-    // 7️⃣ Response ke Frontend
+    // 7️⃣ Return ke frontend
     // ===============================
     res.status(200).json({
       message: "Berhasil mengambil data dashboard admin",
@@ -102,8 +103,8 @@ export const getAdminDashboard = async (req, res) => {
         total_houses: totalHouses || 0,
         reserved_houses: reservedHouses || 0,
         active_reservations: activeReservations || 0,
-        cancelled_reservations: cancelledReservations || 0, // <--- TAMBAHKAN INI
-        latest_reservations: latestReservations || [],
+        cancelled_reservations: cancelledReservations || 0,
+        all_reservations: allReservations || [],   // <--- INI SEMUA RESERVASI
       },
     });
   } catch (err) {
