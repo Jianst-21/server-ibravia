@@ -4,11 +4,11 @@ import transporter from "../config/nodemailer.js";
 
 export async function updateReservationStatus() {
   try {
-    // 🔹 Waktu sekarang UTC
+    // 🔹 Current time in UTC
     const now = new Date().toISOString();
     console.log(" Cron running at (UTC):", now);
 
-    // 🔹 Ambil semua reservasi pending yang sudah lewat end_date
+    // 🔹 Fetch all pending reservations where end_date has passed
     const { data: expiredReservations, error: fetchError } = await supabase
       .from("reservation")
       .select(`
@@ -26,10 +26,10 @@ export async function updateReservationStatus() {
 
     if (fetchError) throw fetchError;
 
-    console.log(" Pending reservations expired found:", expiredReservations.length);
+    console.log(" Pending expired reservations found:", expiredReservations.length);
 
     if (!expiredReservations.length) {
-      console.log(" Tidak ada reservasi pending yang expired.");
+      console.log(" No pending reservations that have expired.");
       return;
     }
 
@@ -39,7 +39,7 @@ export async function updateReservationStatus() {
 
       console.log(` Canceling reservation ID: ${reservation.id_reservasi} | House: ${houseName}`);
 
-      //  Update status reservasi -> canceled
+      // 🔹 Update reservation status → canceled
       const { error: updateResError } = await supabase
         .from("reservation")
         .update({ reservation_status: "canceled" })
@@ -50,7 +50,7 @@ export async function updateReservationStatus() {
         continue;
       }
 
-      //  Update status rumah -> available
+      // 🔹 Update house status → available
       const { error: updateHouseError } = await supabase
         .from("houses")
         .update({ status: "available" })
@@ -58,50 +58,50 @@ export async function updateReservationStatus() {
 
       if (updateHouseError) console.error(" Failed to update house status:", updateHouseError);
 
-      //  Simpan email ke user
+      // 🔹 Save email record to database
       const { error: emailError } = await supabase.from("email").insert({
         id_user: reservation.id_user,
         id_reservasi: reservation.id_reservasi,
         send_time,
-        deskripsi: `Reservasi rumah ${houseName} telah dibatalkan karena tidak dikonfirmasi sebelum ${new Date(reservation.end_date).toLocaleString()}.`,
+        deskripsi: `The reservation for house ${houseName} has been canceled because it was not confirmed before ${new Date(reservation.end_date).toLocaleString()}.`,
       });
       if (emailError) console.error(" Failed to insert email record:", emailError);
 
-      //  Kirim email ke user
+      // 🔹 Send email to user
       if (reservation.user?.email) {
         try {
           await transporter.sendMail({
-            from: `"ibravia@gmail.com" <${process.env.EMAIL_USER}>`,
+            from: `"ibraviaku@gmail.com" <${process.env.EMAIL_USER}>`,
             to: reservation.user.email,
-            subject: "Reservasi Anda Telah Dibatalkan",
+            subject: "Your Reservation Has Been Canceled",
             html: `
-              <h2>Halo, ${reservation.user.name}</h2>
-              <p>Reservasi Anda untuk rumah <b>${houseName}</b> telah <b>dibatalkan</b> karena tidak dikonfirmasi sebelum waktunya.</p>
-              <p>Tanggal akhir reservasi: <b>${new Date(reservation.end_date).toLocaleString()}</b></p>
-              <p>Silakan lakukan reservasi ulang jika berminat.</p>
+              <h2>Hello, ${reservation.user.name}</h2>
+              <p>Your reservation for the house <b>${houseName}</b> has been <b>canceled</b> because it was not confirmed before the deadline.</p>
+              <p>Reservation end date: <b>${new Date(reservation.end_date).toLocaleString()}</b></p>
+              <p>Please make a new reservation if you are still interested.</p>
               <br/>
-              <p>Terima kasih,<br/>ibravia</p>
+              <p>Thank you,<br/>ibravia</p>
             `,
           });
-          console.log(` Email terkirim ke ${reservation.user.email}`);
+          console.log(` Email sent to ${reservation.user.email}`);
         } catch (err) {
           console.error(" Failed to send email:", err.message);
         }
       }
 
-      //  Simpan notifikasi ke admin (ambil dari house.id_admin)
+      // 🔹 Save notification for admin
       const { error: notifError } = await supabase.from("notification").insert({
-        id_admin: reservation.house?.id_admin || 1, // default admin 1 jika null
+        id_admin: reservation.house?.id_admin || 1,
         id_reservasi: reservation.id_reservasi,
         id_pt: reservation.house?.id_pt || null,
-        content: `Reservasi oleh ${reservation.user?.name} untuk rumah ${houseName} telah dibatalkan karena tidak dikonfirmasi.`,
+        content: `A reservation by ${reservation.user?.name} for house ${houseName} has been canceled because it was not confirmed.`,
         send_time,
         read_status: false,
       });
       if (notifError) console.error(" Failed to insert notification:", notifError);
     }
 
-    console.log(" Semua reservasi pending expired telah dibatalkan dan notifikasi dikirim.");
+    console.log(" All expired pending reservations have been canceled and notifications sent.");
   } catch (err) {
     console.error(" Error updateReservationStatus:", err.message);
   }
