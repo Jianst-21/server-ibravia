@@ -1,5 +1,12 @@
 import supabase from "../config/supabaseclient.js";
 
+/**
+ * Controller: getPropertyList
+ * Deskripsi: Mengambil seluruh daftar blok perumahan beserta informasi terkait.
+ * Relasi: 
+ * - Menarik data profil perumahan (residence).
+ * - Menarik daftar unit rumah (house) yang tersedia di dalam blok tersebut.
+ */
 export const getPropertyList = async (req, res) => {
   const { data, error } = await supabase
     .from("block")
@@ -26,15 +33,21 @@ export const getPropertyList = async (req, res) => {
         id_pt,
         full_price,
         down_payment
-        
       )
     `);
 
+  // Mengembalikan pesan error jika query ke database gagal
   if (error) return res.status(400).json({ error: error.message });
+  
   res.json(data);
 };
 
- export const getPropertyDetail = async (req, res) => {
+/**
+ * Controller: getPropertyDetail
+ * Deskripsi: Mengambil detail spesifik dari satu blok berdasarkan ID.
+ * Fitur: Mengonversi nilai angka mentah (price & down payment) menjadi format mata uang Rupiah (IDR).
+ */
+export const getPropertyDetail = async (req, res) => {
   const { id } = req.params;
 
   const { data, error } = await supabase
@@ -65,11 +78,15 @@ export const getPropertyList = async (req, res) => {
       )
     `)
     .eq("id_block", id)
-    .single();
+    .single(); // Mengambil satu objek data (bukan array)
 
   if (error) return res.status(400).json({ error: error.message });
 
-  // 🔹 Format angka harga jadi Rupiah
+  /**
+   * Helper: formatRupiah
+   * Menggunakan Intl.NumberFormat standar JavaScript untuk mengubah angka 
+   * menjadi format IDR (Contoh: Rp 500.000.000).
+   */
   const formatRupiah = (value) =>
     new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -77,6 +94,11 @@ export const getPropertyList = async (req, res) => {
       maximumFractionDigits: 0,
     }).format(value || 0);
 
+  /**
+   * Transformasi Data:
+   * Melakukan restrukturisasi data untuk menyisipkan nilai harga yang sudah terformat
+   * sebelum dikirimkan ke frontend.
+   */
   const formattedData = {
     ...data,
     house: {

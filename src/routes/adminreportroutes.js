@@ -4,9 +4,9 @@ import { getAdminReport } from "../controllers/adminreportcontroller.js";
 
 const router = express.Router();
 
-/* ======================
-   📊 ADMIN REPORT
-====================== */
+/* 
+    ADMIN REPORT
+ */
 router.get("/", verifyAdmin, getAdminReport);
 
 export default router;

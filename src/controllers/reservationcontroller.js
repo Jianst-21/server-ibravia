@@ -1,61 +1,55 @@
-// file: controllers/reservationController.js
 import supabase from "../config/supabaseclient.js";
 import transporter from "../config/nodemailer.js";
 
+/**
+ * Controller: createReservation
+ * Mengelola proses pembuatan booking baru oleh Customer.
+ * Alur: Validasi User -> Cek Duplikasi Booking -> Cek Stok Unit -> Insert Data -> Email & Notifikasi.
+ */
 export const createReservation = async (req, res) => {
   const { id_user, id_pt, id_house, reservation_status } = req.body;
 
   try {
-    // ============= FETCH USER DATA =====================
+    // 1. Verifikasi Data User
     const { data: userData, error: userError } = await supabase
       .from("user")
       .select("name, email")
       .eq("id_user", id_user)
       .single();
-    if (userError) throw userError;
-    if (!userData) throw new Error("User not found.");
+    if (userError || !userData) throw new Error("User not found.");
 
     const userName = userData.name;
     const userEmail = userData.email;
 
-    // ============= VALIDATE EXISTING RESERVATION =====================
+    // 2. Validasi Duplikasi: Customer tidak boleh punya lebih dari satu reservasi aktif (pending/accepted)
     const { data: existingUserReservation, error: existingError } =
       await supabase
         .from("reservation")
         .select("*")
         .eq("id_user", id_user)
         .in("reservation_status", ["pending", "accepted"]);
+    
     if (existingError) throw existingError;
 
     if (existingUserReservation && existingUserReservation.length > 0) {
       return res.status(400).json({
         success: false,
-        error:
-          "You still have an unfinished reservation. Please complete it first.",
+        error: "You still have an unfinished reservation. Please complete it first.",
       });
     }
 
-    // ============= FETCH HOUSE DATA =====================
+    // 3. Verifikasi Ketersediaan Unit Rumah
     const { data: houseData, error: houseError } = await supabase
       .from("houses")
-      .select(
-        `
-        id_house,
-        id_admin,
-        status,
-        number_block,
-        block:block(
-          id_block,
-          block_name,
-          residence:residence(id_residence, residence_name)
-        )
-      `
-      )
+      .select(`
+        id_house, id_admin, status, number_block,
+        block:block(id_block, block_name, residence:residence(id_residence, residence_name))
+      `)
       .eq("id_house", id_house)
       .single();
+    
     if (houseError) throw houseError;
 
-    // ============= CHECK HOUSE STATUS =====================
     if (!houseData || ["reserved", "sold"].includes(houseData.status)) {
       return res.status(400).json({
         success: false,
@@ -63,44 +57,34 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ============= SET START & END DATE =====================
+    // 4. Pengaturan Masa Berlaku (H+7)
     const start_date = new Date().toISOString();
-    const end_date = new Date(
-      Date.now() + 7 * 24 * 60 * 60 * 1000
-    ).toISOString();
+    const end_date = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // ============= INSERT RESERVATION =====================
+    // 5. Transaksi: Simpan Reservasi Baru
     const { data: reservation, error: insertError } = await supabase
       .from("reservation")
-      .insert([
-        { id_user, id_pt, id_house, start_date, end_date, reservation_status },
-      ])
+      .insert([{ id_user, id_pt, id_house, start_date, end_date, reservation_status }])
       .select();
+    
     if (insertError) throw insertError;
-
     const newReservation = reservation[0];
 
-    // ============= UPDATE HOUSE STATUS =====================
-    await supabase
-      .from("houses")
-      .update({ status: "reserved" })
-      .eq("id_house", id_house);
+    // 6. Update Status Unit menjadi 'reserved' agar tidak bisa dipesan orang lain
+    await supabase.from("houses").update({ status: "reserved" }).eq("id_house", id_house);
 
-    // ============= COMPOSE HOUSE NAME =====================
     const residenceName = houseData.block?.residence?.residence_name;
-    const houseName = `${residenceName}`;
-
     const sendTime = new Date().toISOString();
 
-    // ============= SAVE EMAIL RECORD =====================
+    // 7. Pencatatan Log Email ke Database
     await supabase.from("email").insert({
       id_user,
       id_reservasi: newReservation.id_reservasi,
       send_time: sendTime,
-      deskripsi: `Reservation for house ${houseName} has been successfully created!`,
+      deskripsi: `Reservation for house in ${residenceName} successfully created.`,
     });
 
-    // ============= FETCH ADMIN FOR EMAIL =====================
+    // 8. Ambil Kontak Admin untuk dikirimkan ke Customer
     const { data: adminData } = await supabase
       .from("admin")
       .select("username, phone")
@@ -110,48 +94,33 @@ export const createReservation = async (req, res) => {
     const adminName = adminData?.username || "Admin";
     const adminPhone = adminData?.phone || "-";
 
-    // ============= SEND EMAIL TO USER =====================
-    // ============= SEND EMAIL TO USER =====================
+    // 9. Pengiriman Email Konfirmasi ke Customer
     if (userEmail) {
-      // Format username agar kapital di awal setiap kata
-      const formattedUserName = userName
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-
-      // Nama residence saja untuk subject
-      const residenceName = houseData.block?.residence?.residence_name;
-
-      // Nama lengkap untuk isi email
+      const formattedUserName = userName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
       const houseFullName = `${residenceName} — Block ${houseData.block?.block_name} No. ${houseData.number_block}`;
 
       await transporter.sendMail({
-        from: `"ibraviaku@gmail.com" <${process.env.EMAIL_USER}>`,
+        from: `"Ibravia" <${process.env.EMAIL_USER}>`,
         to: userEmail,
         subject: `${residenceName} — Reservation Created`,
         html: `
           <h2>${residenceName}</h2>
-
           <p>Hello <b>${formattedUserName}</b>,</p>
           <p>Your reservation for <b>${houseFullName}</b> has been successfully created.</p>
-
           <p><b>Start Date:</b> ${new Date(start_date).toLocaleDateString()}</p>
           <p><b>End Date:</b> ${new Date(end_date).toLocaleDateString()}</p>
-
-          <p>Please contact our admin: +62 <b>${adminPhone}</b> (${adminName}) within 7 days. 
-            If you do not confirm within this period, your reservation will be automatically cancelled.</</p>
-          <br/>
-          <p>Thank you for choosing our service.</p>
+          <p>Please contact our admin: +62 <b>${adminPhone}</b> (${adminName}) within 7 days to confirm payment.</p>
+          <p>Thank you for choosing Ibravia.</p>
         `,
       });
     }
 
-    // ============= ADMIN NOTIFICATION =====================
+    // 10. Pengiriman Notifikasi ke Panel Admin (Dashboard Admin)
     await supabase.from("notification").insert({
       id_admin: houseData.id_admin,
       id_reservasi: newReservation.id_reservasi,
       id_pt,
-      content: `User ${userName} reserved house in ${houseName}.`,
+      content: `New reservation by ${userName} for unit ${houseData.number_block}.`,
       send_time: sendTime,
       read_status: false,
     });
@@ -167,64 +136,39 @@ export const createReservation = async (req, res) => {
   }
 };
 
+/**
+ * Controller: getReservationsByUser
+ * Mengambil seluruh riwayat reservasi milik satu pengguna tertentu.
+ * Alur: Query Join -> Formatting Deskripsi Ruangan -> Respon JSON.
+ */
 export const getReservationsByUser = async (req, res) => {
   const { id_user } = req.params;
 
   try {
     const { data, error } = await supabase
       .from("reservation")
-      .select(
-        `
-        id_reservasi,
-        start_date,
-        end_date,
-        reservation_status,
+      .select(`
+        id_reservasi, start_date, end_date, reservation_status,
         house:houses (
-          id_house,
-          number_block,
+          id_house, number_block,
           block:block (
-            id_block,
-            block_name,
-            bathroom,
-            bedroom,
-            living_room,
-            family_room,
-            kitchen,
+            id_block, block_name, bathroom, bedroom, living_room, family_room, kitchen,
             residence:residence (residence_name)
           )
         )
-      `
-      )
+      `)
       .eq("id_user", id_user);
 
-    if (error) {
-      console.error("❌ Supabase error:", error);
-      return res
-        .status(500)
-        .json({ error: "Failed to fetch user reservations." });
-    }
+    if (error) throw error;
+    if (!data || data.length === 0) return res.status(404).json({ message: "No reservations found." });
 
-    if (!data || data.length === 0) {
-      return res.status(404).json({ message: "No reservations found." });
-    }
-
+    // Formatting data untuk tampilan kartu (Card) di frontend
     const formatted = data.map((item) => {
       const block = item.house?.block || {};
-
       const details = [
-        block.bedroom
-          ? `${block.bedroom} Bedroom${block.bedroom > 1 ? "s" : ""}`
-          : null,
-        block.bathroom
-          ? `${block.bathroom} Bathroom${block.bathroom > 1 ? "s" : ""}`
-          : null,
-        block.living_room && block.family_room
-          ? "Living & Family Room"
-          : block.living_room
-          ? "Living Room"
-          : block.family_room
-          ? "Family Room"
-          : null,
+        block.bedroom ? `${block.bedroom} Bedroom(s)` : null,
+        block.bathroom ? `${block.bathroom} Bathroom(s)` : null,
+        block.living_room && block.family_room ? "Living & Family Room" : block.living_room ? "Living Room" : block.family_room ? "Family Room" : null,
         block.kitchen ? "Kitchen" : null,
       ].filter(Boolean);
 

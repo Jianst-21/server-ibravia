@@ -8,9 +8,9 @@ import {
 
 const router = express.Router();
 
-/* ===========================
-   🏠 ADMIN MANAGE HOUSES
-=========================== */
+/* 
+    ADMIN MANAGE HOUSES
+ */
 
 // Ambil semua data rumah milik PT admin
 router.get("/houses", verifyAdmin, getAdminHouses);
@@ -18,9 +18,9 @@ router.get("/houses", verifyAdmin, getAdminHouses);
 // Update status rumah (available / sold / reserved)
 router.patch("/houses/:id_house/status", verifyAdmin, updateHouseStatus);
 
-/* ===========================
-   📅 RESERVATIONS BY HOUSE
-=========================== */
+/* 
+    RESERVATIONS BY HOUSE
+ */
 
 // Ambil data reservasi berdasarkan id_house (untuk hitung H-7)
 router.get("/reservations/:id_house", verifyAdmin, getReservationByHouse);

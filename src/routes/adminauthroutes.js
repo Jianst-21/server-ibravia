@@ -3,9 +3,7 @@ import { loginAdmin } from "../controllers/adminauthcontroller.js";
 
 const router = express.Router();
 
-/* ======================
-   🔐 ADMIN AUTH
-====================== */
+//Auth
 router.post("/login", loginAdmin);
 
 export default router;

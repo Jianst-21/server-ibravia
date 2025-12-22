@@ -2,13 +2,23 @@
 import supabase from "../config/supabaseclient.js";
 import transporter from "../config/nodemailer.js";
 
+/**
+ * Fungsi updateReservationStatus
+ * Berfungsi sebagai sistem pembersihan otomatis (Auto-Cleanup) untuk membatalkan
+ * reservasi yang sudah melewati batas waktu (deadline) tanpa konfirmasi admin.
+ */
 export async function updateReservationStatus() {
   try {
-    // 🔹 Current time in UTC
+    // 1. Inisialisasi waktu sekarang dalam format ISO (UTC) untuk perbandingan database
     const now = new Date().toISOString();
-    console.log(" Cron running at (UTC):", now);
+    console.log("Cron running at (UTC):", now);
 
-    // 🔹 Fetch all pending reservations where end_date has passed
+    /**
+     * 2. Pengambilan Data Reservasi Kedaluwarsa
+     * Mencari reservasi dengan kriteria:
+     * - Status masih 'pending'
+     * - Tanggal end_date lebih kecil dari waktu sekarang (lt = less than)
+     */
     const { data: expiredReservations, error: fetchError } = await supabase
       .from("reservation")
       .select(`
@@ -18,7 +28,10 @@ export async function updateReservationStatus() {
         start_date,
         end_date,
         reservation_status,
-        house:houses(id_house, number_block, id_pt, id_admin, status, block:block(id_block, block_name, residence:residence(id_residence, residence_name))),
+        house:houses(
+          id_house, number_block, id_pt, id_admin, status, 
+          block:block(id_block, block_name, residence:residence(id_residence, residence_name))
+        ),
         user:user(id_user, name, email)
       `)
       .eq("reservation_status", "pending")
@@ -26,83 +39,86 @@ export async function updateReservationStatus() {
 
     if (fetchError) throw fetchError;
 
-    console.log(" Pending expired reservations found:", expiredReservations.length);
+    console.log("Pending expired reservations found:", expiredReservations.length);
 
     if (!expiredReservations.length) {
-      console.log(" No pending reservations that have expired.");
+      console.log("No pending reservations that have expired.");
       return;
     }
 
+    /**
+     * 3. Iterasi Pemrosesan Pembatalan
+     * Setiap reservasi yang kedaluwarsa akan diproses satu per satu (Sequentially).
+     */
     for (const reservation of expiredReservations) {
       const houseName = `Block ${reservation.house?.number_block} - ${reservation.house?.block?.block_name} (${reservation.house?.block?.residence?.residence_name})`;
       const send_time = new Date().toISOString();
 
-      console.log(` Canceling reservation ID: ${reservation.id_reservasi} | House: ${houseName}`);
+      console.log(`Canceling reservation ID: ${reservation.id_reservasi} | House: ${houseName}`);
 
-      // 🔹 Update reservation status → canceled
+      // A. Update status reservasi di database menjadi 'canceled'
       const { error: updateResError } = await supabase
         .from("reservation")
         .update({ reservation_status: "canceled" })
         .eq("id_reservasi", reservation.id_reservasi);
 
       if (updateResError) {
-        console.error(" Failed to update reservation status:", updateResError);
-        continue;
+        console.error("Failed to update reservation status:", updateResError);
+        continue; // Lewati ke data berikutnya jika update gagal
       }
 
-      // 🔹 Update house status → available
+      // B. Kembalikan status unit rumah menjadi 'available' agar bisa dipesan kembali
       const { error: updateHouseError } = await supabase
         .from("houses")
         .update({ status: "available" })
         .eq("id_house", reservation.id_house);
 
-      if (updateHouseError) console.error(" Failed to update house status:", updateHouseError);
+      if (updateHouseError) console.error("Failed to update house status:", updateHouseError);
 
-      // 🔹 Save email record to database
+      // C. Pencatatan log aktivitas pengiriman email ke database
       const { error: emailError } = await supabase.from("email").insert({
         id_user: reservation.id_user,
         id_reservasi: reservation.id_reservasi,
         send_time,
-        deskripsi: `The reservation for house ${houseName} has been canceled because it was not confirmed before ${new Date(reservation.end_date).toLocaleString()}.`,
+        deskripsi: `Canceled: deadline reached (${new Date(reservation.end_date).toLocaleString()}).`,
       });
-      if (emailError) console.error(" Failed to insert email record:", emailError);
+      if (emailError) console.error("Failed to insert email record:", emailError);
 
-      // 🔹 Send email to user
+      // D. Notifikasi Email kepada User (Customer)
       if (reservation.user?.email) {
         try {
           await transporter.sendMail({
-            from: `"ibraviaku@gmail.com" <${process.env.EMAIL_USER}>`,
+            from: `"Ibravia Support" <${process.env.EMAIL_USER}>`,
             to: reservation.user.email,
             subject: "Your Reservation Has Been Canceled",
             html: `
               <h2>Hello, ${reservation.user.name}</h2>
               <p>Your reservation for the house <b>${houseName}</b> has been <b>canceled</b> because it was not confirmed before the deadline.</p>
-              <p>Reservation end date: <b>${new Date(reservation.end_date).toLocaleString()}</b></p>
-              <p>Please make a new reservation if you are still interested.</p>
+              <p>Deadline: <b>${new Date(reservation.end_date).toLocaleString()}</b></p>
+              <p>If you are still interested, please make a new reservation through our platform.</p>
               <br/>
-              <p>Thank you,<br/>ibravia</p>
+              <p>Regards,<br/>The Ibravia Team</p>
             `,
           });
-          console.log(` Email sent to ${reservation.user.email}`);
         } catch (err) {
-          console.error(" Failed to send email:", err.message);
+          console.error("Failed to send email to user:", err.message);
         }
       }
 
-      // 🔹 Save notification for admin
+      // E. Notifikasi sistem untuk Dashboard Admin
       const { error: notifError } = await supabase.from("notification").insert({
         id_admin: reservation.house?.id_admin || 1,
         id_reservasi: reservation.id_reservasi,
         id_pt: reservation.house?.id_pt || null,
-        content: `A reservation by ${reservation.user?.name} for house ${houseName} has been canceled because it was not confirmed.`,
+        content: `System Auto-Cancel: Reservation by ${reservation.user?.name} for ${houseName} expired.`,
         send_time,
         read_status: false,
       });
-      if (notifError) console.error(" Failed to insert notification:", notifError);
+      if (notifError) console.error("Failed to insert notification:", notifError);
     }
 
-    console.log(" All expired pending reservations have been canceled and notifications sent.");
+    console.log("Job completed successfully.");
   } catch (err) {
-    console.error(" Error updateReservationStatus:", err.message);
+    console.error("Critical Error in updateReservationStatus cron:", err.message);
   }
 }
