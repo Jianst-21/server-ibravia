@@ -84,7 +84,7 @@ export const createReservation = async (req, res) => {
       deskripsi: `Reservation for house in ${residenceName} successfully created.`,
     });
 
-    // 8. Ambil Kontak Admin untuk dikirimkan ke Customer
+    // 8. Ambil Kontak Admin untuk dikirimkan ke Customer asik
     const { data: adminData } = await supabase
       .from("admin")
       .select("username, phone")
